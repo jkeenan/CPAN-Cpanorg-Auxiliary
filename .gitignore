@@ -1,0 +1,10 @@
+# .gitignore for CPAN-Cpanorg-Auxiliary
+/MANIFEST.bak
+/Makefile
+/Makefile.old
+/CPAN-Cpanorg-Auxiliary-*.tar.gz
+/MYMETA.yml
+/blib
+/pm_to_blib
+/cover_db/
+/MYMETA.json

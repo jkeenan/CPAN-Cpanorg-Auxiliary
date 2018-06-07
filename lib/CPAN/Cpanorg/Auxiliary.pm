@@ -4,15 +4,44 @@ use warnings;
 use parent 'Exporter';
 our $VERSION = '0.01';
 our @EXPORT_OK = qw(
+    print_file
+    fetch_perl_version_data
+    sort_versions
+    extract_first_per_version_in_list
 );
-use Carp qw/confess/;
-use File::Basename qw/dirname basename/;
 use File::Slurp 9999.19;
-use Getopt::Long;
 use JSON ();
 use LWP::Simple qw(get);
 
-my $json = JSON->new->pretty(1);
+=head1 SUBROUTINES
+
+=head2 C<print_file()>
+
+=over 4
+
+=item * Purpose
+
+Write out data from an array reference, here, data from the result of an HTTP
+F<get> call which returns data in JSON format.
+
+=item * Arguments
+
+    write_file($file, $array_ref);
+
+Two arguments:  basename of a file to be written to (implicitly, in a subdirectory called F<data/>); reference to an array of JSON elements.
+
+=item * Return Value
+
+Implicitly returns true value upon success.  Dies otherwise.
+
+=item * Comment
+
+Currently a wrapper around C<File::Slurp::write_file()>.  With perl 5.26 and
+later, use of File::Slurp throws a deprecation warning.
+
+=back
+
+=cut
 
 sub print_file {
     my ( $file, $data ) = @_;
@@ -20,6 +49,28 @@ sub print_file {
     write_file( "data/$file", { binmode => ':utf8' }, $data )
         or die "Could not open data/$file: $!";
 }
+
+=head2 C<sort_versions()>
+
+=over 4
+
+=item * Purpose
+
+Produce appropriately sorted list of Perl releases.
+
+=item * Arguments
+
+    my $latest = sort_versions( [ values %{$latest_per_version} ] )->[0];
+
+=item * Return Value
+
+=item * Comment
+
+Call last.
+
+=back
+
+=cut
 
 sub sort_versions {
     my $list = shift;
@@ -34,6 +85,22 @@ sub sort_versions {
 
 }
 
+=head2 C<extract_first_per_version_in_list()>
+
+=over 4
+
+=item * Purpose
+
+=item * Arguments
+
+=item * Return Value
+
+=item * Comment
+
+=back
+
+=cut
+
 sub extract_first_per_version_in_list {
     my $versions = shift;
 
@@ -47,6 +114,47 @@ sub extract_first_per_version_in_list {
     }
     return $lookup;
 }
+
+=head2 C<fetch_perl_version_data()>
+
+=over 4
+
+=item * Purpose
+
+Compares JSON data found on disk to result of API call to CPAN for 'perl' distribution.
+
+=item * Arguments
+
+None at the present time.
+
+=item * Return Value
+
+List of two array references:
+
+=over 4
+
+=item *
+
+List of hash references, one per stable perl release.
+
+=item *
+
+List of hash references, one per developmental or RC perl release.
+
+=back
+
+Side effect:  Guarantees existence of file F<data/perl_version_all.json> beneath current working directory.
+
+=item * Comment
+
+Assumes existence of subdirectory F<data/> beneath current working directory.
+
+Internally makes calls to C<File::Slurp::read_file()>, C<LWP::Simple::get()>,
+C<File::Slurp::write_file()> (which throws warning in perl-5.26+).
+
+=back
+
+=cut
 
 sub fetch_perl_version_data {
     my $perl_dist_url = "http://search.cpan.org/api/dist/perl";
@@ -64,13 +172,15 @@ sub fetch_perl_version_data {
     if ( $cpan_json eq $disk_json ) {
 
         # Data has not changed so don't need to do anything
-        exit;
-    } else {
-
+        #exit;
+        return;
+    }
+    else {
         # Save for next fetch
         print_file( $filename, $cpan_json );
     }
 
+    my $json = JSON->new->pretty(1);
     my $data = $json->decode($cpan_json);
 
     my @perls;
@@ -107,11 +217,13 @@ sub fetch_perl_version_data {
 
         if ( $module->{status} eq 'stable' ) {
             push @perls, $module;
-        } else {
+        }
+        else {
             push @testing, $module;
         }
     }
     return \@perls, \@testing;
 }
 
+1;
 
