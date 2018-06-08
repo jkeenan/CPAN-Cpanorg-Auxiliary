@@ -65,6 +65,9 @@ my $cwd = cwd();
     my $sample_tarball = File::Spec->catfile($tdir,
         qw( CPAN authors id S SH SHAY perl-5.26.2-RC1.tar.gz ));
     ok(-f $sample_tarball, "$sample_tarball copied into position for testing");
+    my $sample_checksums = File::Spec->catfile($tdir,
+        qw( CPAN authors id S SH SHAY CHECKSUMS ));
+    ok(-f $sample_checksums, "$sample_checksums copied into position for testing");
 
     my $mock_api_results = File::Spec->catfile($cwd, 't', 'mock.perl_version_all.json');
     ok(-f $mock_api_results, "Located $mock_api_results for testing");
