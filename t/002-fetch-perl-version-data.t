@@ -4,6 +4,7 @@ use warnings;
 use CPAN::Cpanorg::Auxiliary qw(
     fetch_perl_version_data
     add_release_metadata
+    write_security_files_and_symlinks
 );
 use Carp;
 use Cwd;
@@ -19,32 +20,32 @@ use Test::More;
 
 my $cwd = cwd();
 
-{
-    my $tdir = tempdir(CLEANUP => 1);
-    my $datadir = File::Spec->catdir($tdir, 'data');
-    my $jsonfile = 'perl_version_all.json';
-    my $file_expected = File::Spec->catfile($datadir, $jsonfile);
-    my @created = make_path($datadir, { mode => 0711 });
-    ok(@created, "Able to create $datadir for testing");
-
-    chdir $tdir or croak "Unable to change to $tdir for testing";
-
-    my ( $perl_versions, $perl_testing ) = fetch_perl_version_data();
-    for ( $perl_versions, $perl_testing ) {
-        ok(defined $_, "fetch_perl_version_data() returned defined value");
-        ok(ref($_) eq 'ARRAY', "fetch_perl_version_data() returned arrayref");
-    }
-    ok(-f $file_expected, "$file_expected was created");
-    TODO: {
-        local $TODO = 'Bizarre situation';
-    ok(scalar @{$perl_versions},
-        "fetch_perl_version_data() found non-zero number of stable releases");
-    ok(scalar @{$perl_testing},
-        "fetch_perl_version_data() found non-zero number of dev or RC releases");
-    }
-
-    chdir $cwd or croak "Unable to change back to $cwd";
-}
+#{
+#    my $tdir = tempdir(CLEANUP => 1);
+#    my $datadir = File::Spec->catdir($tdir, 'data');
+#    my $jsonfile = 'perl_version_all.json';
+#    my $file_expected = File::Spec->catfile($datadir, $jsonfile);
+#    my @created = make_path($datadir, { mode => 0711 });
+#    ok(@created, "Able to create $datadir for testing");
+#
+#    chdir $tdir or croak "Unable to change to $tdir for testing";
+#
+#    my ( $perl_versions, $perl_testing ) = fetch_perl_version_data();
+#    for ( $perl_versions, $perl_testing ) {
+#        ok(defined $_, "fetch_perl_version_data() returned defined value");
+#        ok(ref($_) eq 'ARRAY', "fetch_perl_version_data() returned arrayref");
+#    }
+#    ok(-f $file_expected, "$file_expected was created");
+#    TODO: {
+#        local $TODO = 'Bizarre situation';
+#    ok(scalar @{$perl_versions},
+#        "fetch_perl_version_data() found non-zero number of stable releases");
+#    ok(scalar @{$perl_testing},
+#        "fetch_perl_version_data() found non-zero number of dev or RC releases");
+#    }
+#
+#    chdir $cwd or croak "Unable to change back to $cwd";
+#}
 
 {
     my $tdir = tempdir(CLEANUP => 1);
@@ -121,39 +122,42 @@ my $cwd = cwd();
     }
     TODO: {
         local $TODO = 'If both inputs to add_release_metadata() are empty lists, no metadata will be added';
-        my $sample_release_metadata = $perl_testing->[0];
+    my $sample_release_metadata = $perl_testing->[0];
 		for my $k ( qw|
-            released
-            released_date
-            released_time
-            status
-            type
-            url
-            version
-            version_iota
-            version_major
-            version_minor
-            version_number
-        | ) {
-            no warnings 'uninitialized';
-            ok(length($sample_release_metadata->{$k}),
-                "$k: Got non-zero-length string <$sample_release_metadata->{$k}>");
-        }
+        released
+        released_date
+        released_time
+        status
+        type
+        url
+        version
+        version_iota
+        version_major
+        version_minor
+        version_number
+    | ) {
+        no warnings 'uninitialized';
+        ok(length($sample_release_metadata->{$k}),
+            "$k: Got non-zero-length string <$sample_release_metadata->{$k}>");
+    }
 		my $srm_files_metadata = $sample_release_metadata->{files}->[0];
 		for my $k ( qw|
-            file
-            filedir
-            filename
-            md5
-            mtime
-            sha1
-            sha256
-        | ) {
-            no warnings 'uninitialized';
-            ok(length($srm_files_metadata->{$k}),
-                "$k: Got non-zero-length string <$srm_files_metadata->{$k}>");
-        }
+        file
+        filedir
+        filename
+        md5
+        mtime
+        sha1
+        sha256
+    | ) {
+        no warnings 'uninitialized';
+        ok(length($srm_files_metadata->{$k}),
+            "$k: Got non-zero-length string <$srm_files_metadata->{$k}>");
     }
+    chdir $mock_srcdir or croak "Unable to change back to $mock_srcdir";
+    my $rv = write_security_files_and_symlinks( $perl_versions, $perl_testing );
+    ok($rv, "write_security_files_and_symlinks() returned true value");
+    } # END TODO
 
     chdir $cwd or croak "Unable to change back to $cwd";
 }

@@ -9,11 +9,12 @@ our @EXPORT_OK = qw(
     sort_versions
     extract_first_per_version_in_list
     add_release_metadata
+    write_security_files_and_symlinks
 );
 use Cwd;
 use File::Basename qw(basename dirname);
 use File::Spec;
-use File::Slurp 9999.19;
+use File::Slurp 9999.19 qw(read_file write_file);
 use JSON ();
 use LWP::Simple qw(get);
 
@@ -188,7 +189,7 @@ sub fetch_perl_version_data {
     my @perls;
     my @testing;
     foreach my $module ( @{ $data->{releases} } ) {
-        next unless $module->{authorized} eq 'true';
+        #next unless $module->{authorized} eq 'true';
         #next unless $module->{authorized};
 
         my $version = $module->{version};
@@ -265,6 +266,48 @@ sub add_release_metadata {
     return ($perl_versions, $perl_testing);
 }
 
+#my $src = "src";
+#
+sub write_security_files_and_symlinks {
+    my ($perl_versions, $perl_testing) = @_;
+
+    my $thiscwd = cwd();
+    foreach my $perl ( ( @{$perl_versions}, @{$perl_testing} ) ) {
+
+        # For a perl e.g. perl-5.12.4-RC1
+        # create or symlink:
+        foreach my $file ( @{ $perl->{files} } ) {
+    
+            my $filename = $file->{file};
+            say "FFF: $filename";
+    
+            #my $out = "${src}/5.0/" . $file->{filename};
+            my $out = "5.0/" . $file->{filename};
+    
+            foreach my $security (qw(md5 sha1 sha256)) {
+                say "GGG: qq|${out}.${security}.txt|";
+    
+                print_file_if_different( "${out}.${security}.txt",
+                    $file->{$security} );
+            }
+    
+            create_symlink( ( ( '../' x 2 ) . $file->{file} ), $out );
+    
+            # only link stable versions directly from src/
+            next unless $perl->{status} eq 'stable';
+            say "HHH: stable: $perl->{version}";
+                #"${src}/" . $file->{filename}
+                #. 
+            create_symlink(
+                ( ( '../' x 1 ) . $file->{file} ),
+                $file->{filename}
+            );
+    
+        }
+    }
+    return 1;
+}
+
 =head2 file_meta
 
     my $meta = file_meta($file);
@@ -316,6 +359,37 @@ sub file_meta {
         sha256   => $cksum->{$filename}->{sha256},
         sha1     => $sha1,
     };
+}
+
+sub print_file_if_different {
+    my ( $file, $data ) = @_;
+
+    if ( -r $file ) {
+        my $content = read_file($file);
+        return if $content eq $data;
+    }
+
+    write_file( "$file", { binmode => ':utf8' }, $data )
+        or die "Could not open $file: $!";
+}
+
+=head2 create_symlink
+
+    create_symlink($oldfile, $newfile);
+
+Will unlink $newfile if it already exists and then create
+the symlink.
+
+=cut
+
+sub create_symlink {
+    my ( $oldfile, $newfile ) = @_;
+
+    # Clean out old symlink if it does not point to correct location
+    if ( -l $newfile && readlink($newfile) ne $oldfile ) {
+        unlink($newfile);
+    }
+    symlink( $oldfile, $newfile ) unless -l $newfile;
 }
 
 1;
