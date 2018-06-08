@@ -49,7 +49,7 @@ my $cwd = cwd();
 {
     my $tdir = tempdir(CLEANUP => 1);
     my $datadir = File::Spec->catdir($tdir, 'data');
-    my $mock_srcdir = File::Spec->catdir($tdir, qw( cpan CPAN src));
+    my $mock_srcdir = File::Spec->catdir($tdir, qw( CPAN src));
     my $jsonfile = 'perl_version_all.json';
     my $file_expected = File::Spec->catfile($datadir, $jsonfile);
     my @created = make_path($datadir, $mock_srcdir, { mode => 0711 });
@@ -60,10 +60,10 @@ my $cwd = cwd();
     my $from_mockdir = File::Spec->catdir($cwd, 't', 'mockserver');
     @created = dircopy($from_mockdir, $tdir);
     ok(@created, "Copied directories and files for testing");
-    my $CPANdir = File::Spec->catdir($tdir, qw( cpan CPAN ));
+    my $CPANdir = File::Spec->catdir($tdir, qw( CPAN ));
     ok(-d $CPANdir, "Located directory '$CPANdir'");
     my $sample_tarball = File::Spec->catfile($tdir,
-        qw( cpan CPAN authors id S SH SHAY perl-5.26.2-RC1.tar.gz ));
+        qw( CPAN authors id S SH SHAY perl-5.26.2-RC1.tar.gz ));
     ok(-f $sample_tarball, "$sample_tarball copied into position for testing");
 
     my $mock_api_results = File::Spec->catfile($cwd, 't', 'mock.perl_version_all.json');
