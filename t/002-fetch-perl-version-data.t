@@ -119,10 +119,43 @@ my $cwd = cwd();
         local $TODO = 'If both inputs to add_release_metadata() are empty lists, no statuses will be recorded';
     is_deeply(\%statuses, $expect, "Got expected statuses");
     }
+    TODO: {
+        local $TODO = 'If both inputs to add_release_metadata() are empty lists, no metadata will be added';
+        my $sample_release_metadata = $perl_testing->[0];
+		for my $k ( qw|
+            released
+            released_date
+            released_time
+            status
+            type
+            url
+            version
+            version_iota
+            version_major
+            version_minor
+            version_number
+        | ) {
+            no warnings 'uninitialized';
+            ok(length($sample_release_metadata->{$k}),
+                "$k: Got non-zero-length string <$sample_release_metadata->{$k}>");
+        }
+		my $srm_files_metadata = $sample_release_metadata->{files}->[0];
+		for my $k ( qw|
+            file
+            filedir
+            filename
+            md5
+            mtime
+            sha1
+            sha256
+        | ) {
+            no warnings 'uninitialized';
+            ok(length($srm_files_metadata->{$k}),
+                "$k: Got non-zero-length string <$srm_files_metadata->{$k}>");
+        }
+    }
 
     chdir $cwd or croak "Unable to change back to $cwd";
 }
-
-
 
 done_testing;

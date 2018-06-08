@@ -11,6 +11,7 @@ our @EXPORT_OK = qw(
     add_release_metadata
 );
 use Cwd;
+use File::Basename qw(basename dirname);
 use File::Spec;
 use File::Slurp 9999.19;
 use JSON ();
@@ -237,6 +238,8 @@ sub _make_api_call {
 sub add_release_metadata {
     my ($perl_versions, $perl_testing) = @_;
 
+    my $thiscwd = cwd();
+
     # check disk for files
     foreach my $perl ( @{$perl_versions}, @{$perl_testing} ) {
         #say join('|' => $perl->{version}, $perl->{cpanid});
@@ -252,13 +255,67 @@ sub add_release_metadata {
             $perl->{files} = [];
             # The file_meta() sub in bin/perl-sorter.pl assumes the presence
             # of checksum files for each perl release.
-#            foreach my $file (@files) {
-#                my $meta = file_meta($file);
-#                push( @{ $perl->{files} }, $meta );
-#            }
+            foreach my $file (@files) {
+                my $ffile = File::Spec->catfile($thiscwd, $file);
+                my $meta = file_meta($ffile);
+                push( @{ $perl->{files} }, $meta );
+            }
         }
     }
     return ($perl_versions, $perl_testing);
+}
+
+=head2 file_meta
+
+    my $meta = file_meta($file);
+
+	print $meta->{file};
+	print $meta->{filename};
+	print $meta->{filedir};
+    print $meta->{md5};
+    print $meta->{sha256};
+    print $meta->{mtime};
+    print $meta->{sha1};
+
+Get or calculate meta information about a file
+
+=cut
+
+sub file_meta {
+    my $file     = shift;
+    my $filename = basename($file);
+    my $dir      = dirname($file);
+    my $checksum = File::Spec->catfile($dir, 'CHECKSUMS');
+    say "XXX: $checksum";
+
+    # The CHECKSUM file has already calculated
+    # lots of this so use that
+    my $cksum;
+    unless ( defined( $cksum = do $checksum ) ) {
+        die qq[Checksums file "$checksum" not found\n];
+    }
+
+    # Calculate the sha1
+    my $sha1;
+    if ( open( my $fh, "openssl sha1 $file |" ) ) {
+        while (<$fh>) {
+            if (/^SHA1\(.+?\)= ([0-9a-f]+)$/) {
+                $sha1 = $1;
+                last;
+            }
+        }
+    }
+    die qq[Failed to compute sha1 for $file\n] unless defined $sha1;
+
+    return {
+        file     => $file,
+        filedir  => $dir,
+        filename => $filename,
+        mtime    => ( stat($file) )[9],
+        md5      => $cksum->{$filename}->{md5},
+        sha256   => $cksum->{$filename}->{sha256},
+        sha1     => $sha1,
+    };
 }
 
 1;
