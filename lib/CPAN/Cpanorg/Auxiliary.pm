@@ -157,7 +157,6 @@ C<File::Slurp::write_file()> (which throws warning in perl-5.26+).
 =cut
 
 sub fetch_perl_version_data {
-    my $perl_dist_url = "http://search.cpan.org/api/dist/perl";
 
     my $filename = 'perl_version_all.json';
 
@@ -166,8 +165,7 @@ sub fetch_perl_version_data {
     $disk_json = read_file("data/$filename")
         if -r "data/$filename";
 
-    my $cpan_json = get($perl_dist_url);
-    die "Unable to fetch $perl_dist_url" unless $cpan_json;
+    my $cpan_json = _make_api_call();
 
     if ( $cpan_json eq $disk_json ) {
 
@@ -223,6 +221,13 @@ sub fetch_perl_version_data {
         }
     }
     return \@perls, \@testing;
+}
+
+sub _make_api_call {
+    my $perl_dist_url = "http://search.cpan.org/api/dist/perl";
+    my $cpan_json = get($perl_dist_url);
+    die "Unable to fetch $perl_dist_url" unless $cpan_json;
+    return $cpan_json;
 }
 
 1;

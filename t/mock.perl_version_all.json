@@ -181,7 +181,7 @@
          "distvname" : "perl-5.26.0",
          "version" : "5.26.0",
          "archive" : "perl-5.26.0.tar.bz2"
-      },
+      }
    ],
    "latest" : "perl-5.26.2"
 }
