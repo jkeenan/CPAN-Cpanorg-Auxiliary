@@ -1,9 +1,13 @@
 # t/002-fetch-perl-version-data.t
 use 5.14.0;
 use warnings;
-use CPAN::Cpanorg::Auxiliary qw(fetch_perl_version_data);
+use CPAN::Cpanorg::Auxiliary qw(
+    fetch_perl_version_data
+    add_release_metadata
+);
 use Carp;
 use Cwd;
+use Data::Dump qw(dd pp);
 use File::Copy::Recursive::Reduced qw(dircopy);
 use File::Path 2.15 qw(make_path);
 use File::Slurp 9999.19;
@@ -56,6 +60,8 @@ my $cwd = cwd();
     my $from_mockdir = File::Spec->catdir($cwd, 't', 'mockserver');
     @created = dircopy($from_mockdir, $tdir);
     ok(@created, "Copied directories and files for testing");
+    my $CPANdir = File::Spec->catdir($tdir, qw( cpan CPAN ));
+    ok(-d $CPANdir, "Located directory '$CPANdir'");
     my $sample_tarball = File::Spec->catfile($tdir,
         qw( cpan CPAN authors id S SH SHAY perl-5.26.2-RC1.tar.gz ));
     ok(-f $sample_tarball, "$sample_tarball copied into position for testing");
@@ -87,12 +93,28 @@ my $cwd = cwd();
         ok(ref($_) eq 'ARRAY', "fetch_perl_version_data() returned arrayref");
     }
     ok(-f $file_expected, "$file_expected was created");
+    my $spv = scalar @{$perl_versions};
+    my $spt = scalar @{$perl_testing};
     TODO: {
         local $TODO = 'Bizarre situation';
-    ok(scalar @{$perl_versions},
-        "fetch_perl_version_data() found non-zero number of stable releases");
-    ok(scalar @{$perl_testing},
-        "fetch_perl_version_data() found non-zero number of dev or RC releases");
+    ok($spv,
+        "fetch_perl_version_data() found non-zero number ($spv) of stable releases");
+    ok($spt,
+        "fetch_perl_version_data() found non-zero number ($spt) of dev or RC releases");
+    }
+
+    chdir $CPANdir or croak "Unable to chdir to $CPANdir";
+
+    ( $perl_versions, $perl_testing ) = add_release_metadata( $perl_versions, $perl_testing );
+
+    my %statuses = ();
+    my $expect = { stable => 3, testing => 15 };
+    for my $release (@{$perl_versions}, @{$perl_testing}) {
+        $statuses{$release->{status}}++;
+    }
+    TODO: {
+        local $TODO = 'If both inputs to add_release_metadata() are empty lists, no statuses will be recorded';
+    is_deeply(\%statuses, $expect, "Got expected statuses");
     }
 
     chdir $cwd or croak "Unable to change back to $cwd";

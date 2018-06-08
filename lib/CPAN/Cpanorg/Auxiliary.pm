@@ -8,7 +8,10 @@ our @EXPORT_OK = qw(
     fetch_perl_version_data
     sort_versions
     extract_first_per_version_in_list
+    add_release_metadata
 );
+use Cwd;
+use File::Spec;
 use File::Slurp 9999.19;
 use JSON ();
 use LWP::Simple qw(get);
@@ -185,6 +188,7 @@ sub fetch_perl_version_data {
     my @testing;
     foreach my $module ( @{ $data->{releases} } ) {
         next unless $module->{authorized} eq 'true';
+        #next unless $module->{authorized};
 
         my $version = $module->{version};
 
@@ -228,6 +232,33 @@ sub _make_api_call {
     my $cpan_json = get($perl_dist_url);
     die "Unable to fetch $perl_dist_url" unless $cpan_json;
     return $cpan_json;
+}
+
+sub add_release_metadata {
+    my ($perl_versions, $perl_testing) = @_;
+
+    # check disk for files
+    foreach my $perl ( @{$perl_versions}, @{$perl_testing} ) {
+        #say join('|' => $perl->{version}, $perl->{cpanid});
+        my $id = $perl->{cpanid};
+
+        if ( $id =~ /^(.)(.)/ ) {
+            my $path     = "authors/id/$1/$1$2/$id";
+            my $fileroot = "$path/" . $perl->{distvname};
+            my @files    = glob("${fileroot}.*tar.*");
+
+            die "Could not find perl ${fileroot}.*" unless scalar(@files);
+
+            $perl->{files} = [];
+            # The file_meta() sub in bin/perl-sorter.pl assumes the presence
+            # of checksum files for each perl release.
+#            foreach my $file (@files) {
+#                my $meta = file_meta($file);
+#                push( @{ $perl->{files} }, $meta );
+#            }
+        }
+    }
+    return ($perl_versions, $perl_testing);
 }
 
 1;
