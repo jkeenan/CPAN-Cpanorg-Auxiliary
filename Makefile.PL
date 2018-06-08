@@ -1,5 +1,5 @@
-
-
+use strict;
+use warnings;
 use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
@@ -19,6 +19,7 @@ WriteMakefile(
         'File::Temp'    => 0,
         'JSON'          => 0,
         'LWP::Simple'   => 0,
+        'Path::Tiny'    => 0.011,
     },
 );
 

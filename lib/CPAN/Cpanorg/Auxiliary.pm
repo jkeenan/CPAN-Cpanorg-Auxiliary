@@ -14,9 +14,10 @@ our @EXPORT_OK = qw(
 use Cwd;
 use File::Basename qw(basename dirname);
 use File::Spec;
-use File::Slurp 9999.19 qw(read_file write_file);
+use File::Slurp 9999.19 qw(read_file);
 use JSON ();
 use LWP::Simple qw(get);
+use Path::Tiny;
 
 =head1 SUBROUTINES
 
@@ -51,8 +52,9 @@ later, use of File::Slurp throws a deprecation warning.
 sub print_file {
     my ( $file, $data ) = @_;
 
-    write_file( "data/$file", { binmode => ':utf8' }, $data )
-        or die "Could not open data/$file: $!";
+    path("data/$file")->spew_utf8($data)
+        or die "Could not write data/$file: $!";
+
 }
 
 =head2 C<sort_versions()>
@@ -154,9 +156,6 @@ Side effect:  Guarantees existence of file F<data/perl_version_all.json> beneath
 
 Assumes existence of subdirectory F<data/> beneath current working directory.
 
-Internally makes calls to C<File::Slurp::read_file()>, C<LWP::Simple::get()>,
-C<File::Slurp::write_file()> (which throws warning in perl-5.26+).
-
 =back
 
 =cut
@@ -189,7 +188,7 @@ sub fetch_perl_version_data {
     my @perls;
     my @testing;
     foreach my $module ( @{ $data->{releases} } ) {
-        #next unless $module->{authorized} eq 'true';
+        next unless $module->{authorized} eq 'true';
         #next unless $module->{authorized};
 
         my $version = $module->{version};
@@ -199,7 +198,13 @@ sub fetch_perl_version_data {
 
         my ( $major, $minor, $iota ) = split( '[\._]', $version );
         $module->{version_major} = $major;
+
+        # Silence one warning generated when processing the perl release whose
+        # distvname was 'perl-5.6-info'
+        no warnings 'numeric';
         $module->{version_minor} = int($minor);
+        use warnings;
+
         $module->{version_iota}  = int( $iota || '0' );
 
         $module->{type}
@@ -266,8 +271,9 @@ sub add_release_metadata {
     return ($perl_versions, $perl_testing);
 }
 
-#my $src = "src";
-#
+# write_security_files_and_symlinks() assumes existence of directories 'src'
+# and 'src/5.0'
+
 sub write_security_files_and_symlinks {
     my ($perl_versions, $perl_testing) = @_;
 
@@ -277,32 +283,26 @@ sub write_security_files_and_symlinks {
         # For a perl e.g. perl-5.12.4-RC1
         # create or symlink:
         foreach my $file ( @{ $perl->{files} } ) {
-    
+
             my $filename = $file->{file};
-            say "FFF: $filename";
-    
-            #my $out = "${src}/5.0/" . $file->{filename};
             my $out = "5.0/" . $file->{filename};
-    
+
             foreach my $security (qw(md5 sha1 sha256)) {
-                say "GGG: qq|${out}.${security}.txt|";
-    
+                #say "GGG: qq|${out}.${security}.txt|";
+
                 print_file_if_different( "${out}.${security}.txt",
                     $file->{$security} );
             }
-    
-            create_symlink( ( ( '../' x 2 ) . $file->{file} ), $out );
-    
+
+            my $target;
+            my ($authors_dir) = $file->{filedir} =~ s/^.*?(authors.*)$/$1/r;
+            $target = File::Spec->catfile('..', '..', $authors_dir, $file->{filename});
+            create_symlink( $target, $out );
+
             # only link stable versions directly from src/
             next unless $perl->{status} eq 'stable';
-            say "HHH: stable: $perl->{version}";
-                #"${src}/" . $file->{filename}
-                #. 
-            create_symlink(
-                ( ( '../' x 1 ) . $file->{file} ),
-                $file->{filename}
-            );
-    
+            $target = File::Spec->catfile('..', $authors_dir, $file->{filename});
+            create_symlink( $target, $file->{filename} );
         }
     }
     return 1;
@@ -329,7 +329,6 @@ sub file_meta {
     my $filename = basename($file);
     my $dir      = dirname($file);
     my $checksum = File::Spec->catfile($dir, 'CHECKSUMS');
-    say "XXX: $checksum";
 
     # The CHECKSUM file has already calculated
     # lots of this so use that
@@ -369,8 +368,8 @@ sub print_file_if_different {
         return if $content eq $data;
     }
 
-    write_file( "$file", { binmode => ':utf8' }, $data )
-        or die "Could not open $file: $!";
+    path($file)->spew_utf8($data)
+        or die "Could not write $file: $!";
 }
 
 =head2 create_symlink
