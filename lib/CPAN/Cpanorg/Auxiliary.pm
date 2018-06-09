@@ -1,25 +1,172 @@
 package CPAN::Cpanorg::Auxiliary;
 use 5.14.0;
 use warnings;
-use parent 'Exporter';
+#use parent 'Exporter';
 our $VERSION = '0.01';
-our @EXPORT_OK = qw(
-    print_file
-    fetch_perl_version_data
-    sort_versions
-    extract_first_per_version_in_list
-    add_release_metadata
-    write_security_files_and_symlinks
-);
-use Cwd;
-use File::Basename qw(basename dirname);
+#our @EXPORT_OK = qw(
+#    print_file
+#    fetch_perl_version_data
+#    sort_versions
+#    extract_first_per_version_in_list
+#    add_release_metadata
+#    write_security_files_and_symlinks
+#);
+use Carp;
+#use Cwd;
+#use File::Basename qw(basename dirname);
 use File::Spec;
-use File::Slurp 9999.19 qw(read_file);
-use JSON ();
-use LWP::Simple qw(get);
-use Path::Tiny;
+#use File::Slurp 9999.19 qw(read_file);
+#use JSON ();
+#use LWP::Simple qw(get);
+#use Path::Tiny;
 
-=head1 SUBROUTINES
+=head1 NAME
+
+CPAN::Cpanorg::Auxiliary - Methods used in cpan.org infrastructure
+
+=head1 USAGE
+
+    use CPAN::Cpanorg::Auxiliary;
+
+=head1 DESCRIPTION
+
+The objective of this library is to provide methods which can be used to write
+replacements for programs used on the CPAN master server and stored in
+github.com in the F<perlorg/cpanorg> and F<devel/cpanorg-generators>
+repositories.
+
+In particular, each of those repositories has an executable program with
+subroutines identical, or nearly so, to subroutines found in a program in the
+other.  Those programs are:
+
+=over 4
+
+=item * L<cpanorg-generators: bin/perl-sorter.pl|https://github.com/devel/cpanorg-generators/blob/master/bin/perl-sorter.pl>
+
+=item * L<cpanorg: bin/cpanorg_perl_releases|https://github.com/perlorg/cpanorg/blob/master/bin/cpanorg_perl_releases>
+
+=back
+
+By extracting these subroutines into a single package, we hope to improve the
+maintainability of code running on the CPAN infrastructure.
+
+=head1 METHODS
+
+=head2 C<new()>
+
+=over 4
+
+=item * Purpose
+
+F<CPAN::Cpanorg::Auxiliary> constructor.  Primarily used to check for the
+presence of certain directories and files on the server.  Also stores certain
+values that are currently hard-coded in various methods in
+F<perl-sorter.pl> and F<cpanorg_per_releases>.
+
+=item * Arguments
+
+    my $self = CPAN::Cpanorg::Auxiliary->new({});
+
+Hash reference, required.  Elements in that hash include:
+
+=over 4
+
+=item * C<path>
+
+Absolute path to the directory on the server which serves as the "top-level"
+of the infrastructure.  Beneath this directory we expect to find these
+directories already in existence:
+
+    ./CPAN
+    ./CPAN/src
+    ./CPAN/src/5.0
+    ./CPAN/authors
+    ./CPAN/authors/id
+    ./content
+    ./data
+
+=item * C<verbose>
+
+If provided with a Perl-true value, all methods produce extra output on F<STDOUT> when run.
+
+=item * C<versions_json>
+
+String holding the basename of a file to be created (or regenerated) on server
+holding metadata in JSON format about all releases of F<perl>.  Optional; defaults
+to C<perl_version_all.json>.
+
+=item * C<search_api_url>
+
+String holding the URL for making an API call to get metadata about all releases of F<perl>.  Optional; defaults to C<http://search.cpan.org/api/dist/perl>.
+
+=back
+
+=item * Return Value
+
+F<CPAN::Cpanorg::Auxiliary> object.
+
+=item * Comment
+
+=back
+
+
+=cut
+
+sub new {
+    my ($class, $args) = @_;
+
+    $args //= {};
+    croak "Argument to constructor must be hashref"
+        unless ref($args) eq 'HASH';
+
+    my @required_args = ( qw| path | );
+    my @optional_args = ( qw| verbose versions_json search_api_url | );
+    my %valid_args = map {$_ => 1} (@required_args, @optional_args);
+    my @invalid_args_seen = ();
+    for my $k (keys %{$args}) {
+        push @invalid_args_seen, $k unless $valid_args{$k};
+    }
+    croak "Invalid elements passed to constructor: @invalid_args_seen"
+        if @invalid_args_seen;
+
+    for my $el (@required_args) {
+        croak "'$el' not found in elements passed to constructor"
+            unless exists $args->{$el};
+    }
+    croak "Could not locate directory '$args->{path}'" unless (-d $args->{path});
+
+    my %data = map { $_ => $args->{$_} } keys %{$args};
+    $data{versions_json} ||= 'perl_version_all.json';
+    $data{search_api_url} ||= "http://search.cpan.org/api/dist/perl";
+
+    my %dirs_required = (
+        CPANdir     => [ $data{path}, qw| CPAN | ],
+        srcdir      => [ $data{path}, qw| CPAN src | ],
+        fivedir     => [ $data{path}, qw| CPAN src 5.0 | ],
+        authorsdir  => [ $data{path}, qw| CPAN authors | ],
+        iddir       => [ $data{path}, qw| CPAN authors id | ],
+        contentdir  => [ $data{path}, qw| content | ],
+        datadir     => [ $data{path}, qw| data | ],
+    );
+    my @dirs_required = map { File::Spec->catdir(@{$_}) } values %dirs_required;
+    my @dirs_missing = ();
+    for my $dir (@dirs_required) {
+        push @dirs_missing, $dir unless -d $dir;
+    }
+    my $death_message = 'Could not locate required directories:';
+    for my $el (@dirs_missing) {
+        $death_message .= "\n  $el";
+    }
+    croak $death_message if @dirs_missing;
+
+    for my $dir (keys %dirs_required) {
+        $data{$dir} = $dirs_required{$dir};
+    }
+
+    return bless \%data, $class;
+}
+
+__END__
 
 =head2 C<print_file()>
 

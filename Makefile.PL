@@ -7,7 +7,7 @@ WriteMakefile(
     NAME         => 'CPAN::Cpanorg::Auxiliary',
     VERSION_FROM => 'lib/CPAN/Cpanorg/Auxiliary.pm',
     AUTHOR       => 'James E Keenan (jkeenan@cpan.org)',
-    ABSTRACT     => 'Functions used in cpan.org infrastructure',
+    ABSTRACT_FROM   =>  'lib/CPAN/Cpanorg/Auxiliary.pm',
     PREREQ_PM    => {
         'Test::Simple'  => 0.44,
         Carp            => 0,

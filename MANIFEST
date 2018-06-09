@@ -3,9 +3,10 @@ lib/CPAN/Cpanorg/Auxiliary.pm
 LICENSE
 Makefile.PL
 MANIFEST			This list of files
+not_yet/001-print-file.t
+not_yet/002-fetch-perl-version-data.t
 README
-t/001-print-file.t
-t/002-fetch-perl-version-data.t
+t/001-new.t
 t/mock.perl_version_all.json
 t/mockserver/CPAN/authors/id/A/AB/ABIGAIL/CHECKSUMS
 t/mockserver/CPAN/authors/id/A/AB/ABIGAIL/perl-5.27.8.tar.gz
