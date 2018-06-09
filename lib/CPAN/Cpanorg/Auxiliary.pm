@@ -115,9 +115,8 @@ F<CPAN::Cpanorg::Auxiliary> object.
 sub new {
     my ($class, $args) = @_;
 
-    $args //= {};
     croak "Argument to constructor must be hashref"
-        unless ref($args) eq 'HASH';
+        unless defined $args and ref($args) eq 'HASH';
 
     my @required_args = ( qw| path | );
     my @optional_args = ( qw| verbose versions_json search_api_url | );

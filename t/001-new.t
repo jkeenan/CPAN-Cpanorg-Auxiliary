@@ -17,6 +17,13 @@ my $cwd = cwd();
 
 {
     local $@ = undef;
+    eval { $self = CPAN::Cpanorg::Auxiliary->new(); };
+    like($@, qr/Argument to constructor must be hashref/,
+        "new: Got expected error message for non-hashref argument");
+}
+
+{
+    local $@ = undef;
     eval { $self = CPAN::Cpanorg::Auxiliary->new([]); };
     like($@, qr/Argument to constructor must be hashref/,
         "new: Got expected error message for non-hashref argument");
