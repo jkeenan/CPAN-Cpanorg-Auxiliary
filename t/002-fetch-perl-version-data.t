@@ -55,7 +55,8 @@ my $cwd = cwd();
 
     chdir $tdir or croak "Unable to change to $tdir for testing";
 
-    my ( $perl_versions, $perl_testing ) = $self->fetch_perl_version_data;
+    $self->fetch_perl_version_data;
+    my ( $perl_versions, $perl_testing ) = $self->get_perl_versions_and_testing;
     for ( $perl_versions, $perl_testing ) {
         ok(defined $_, "fetch_perl_version_data() returned defined value");
         ok(ref($_) eq 'ARRAY', "fetch_perl_version_data() returned arrayref");
@@ -70,7 +71,8 @@ my $cwd = cwd();
     ok(! defined $self->fetch_perl_version_data,
         "fetch_perl_version_data() returned undefined value when nothing changed");
 
-    ( $perl_versions, $perl_testing ) = $self->add_release_metadata( $perl_versions, $perl_testing );
+    $self->add_release_metadata;
+    ( $perl_versions, $perl_testing ) = $self->get_perl_versions_and_testing;
 
     my %statuses = ();
     my $expect = { stable => 3, testing => 15 };
@@ -111,7 +113,7 @@ my $cwd = cwd();
             "$k: Got non-zero-length string <$srm_files_metadata->{$k}>");
     }
 
-    my $rv = $self->write_security_files_and_symlinks( $perl_versions, $perl_testing );
+    my $rv = $self->write_security_files_and_symlinks;
     ok($rv, "write_security_files_and_symlinks() returned true value");
     my @expected_security_files =
         map { File::Spec->catfile(

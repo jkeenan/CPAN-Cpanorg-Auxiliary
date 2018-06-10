@@ -263,7 +263,13 @@ sub fetch_perl_version_data {
             push @testing, $module;
         }
     }
-    return \@perls, \@testing;
+    $self->{perl_versions} = \@perls;
+    $self->{perl_testing} = \@testing;
+}
+
+sub get_perl_versions_and_testing {
+    my $self = shift;
+    return ( $self->{perl_versions} || undef, $self->{perl_testing} || undef );
 }
 
 sub make_api_call {
@@ -306,13 +312,11 @@ sub print_file {
 
 sub add_release_metadata {
     my $self = shift;
-    my ($perl_versions, $perl_testing) = @_;
-    #dd($perl_versions, $perl_testing );
 
     chdir $self->{CPANdir} or croak "Unable to chdir to $self->{CPANdir}";
 
     # check disk for files
-    foreach my $perl ( @{$perl_versions}, @{$perl_testing} ) {
+    foreach my $perl ( @{$self->{perl_versions}}, @{$self->{perl_testing}} ) {
         my $id = $perl->{cpanid};
 
         if ( $id =~ /^(.)(.)/ ) {
@@ -332,7 +336,6 @@ sub add_release_metadata {
             }
         }
     }
-    return ($perl_versions, $perl_testing);
 }
 
 =head2 file_meta
@@ -389,11 +392,10 @@ sub file_meta {
 
 sub write_security_files_and_symlinks {
     my $self = shift;
-    my ($perl_versions, $perl_testing) = @_;
 
     chdir $self->{srcdir} or croak "Unable to chdir to $self->{srcdir}";
 
-    foreach my $perl ( ( @{$perl_versions}, @{$perl_testing} ) ) {
+    foreach my $perl ( @{$self->{perl_versions}}, @{$self->{perl_testing}} ) {
 
         # For a perl e.g. perl-5.12.4-RC1
         # create or symlink:
