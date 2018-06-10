@@ -89,7 +89,6 @@ my $cwd = cwd();
     }
 
     $self = CPAN::Cpanorg::Auxiliary->new({ path => $tdir });
-#    dd($self);
     ok(defined $self, "new: returned defined value");
     isa_ok($self, 'CPAN::Cpanorg::Auxiliary');
     ok(length($self->{versions_json}),

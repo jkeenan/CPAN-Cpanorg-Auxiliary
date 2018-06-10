@@ -1,25 +1,87 @@
 # t/002-fetch-perl-version-data.t
 use 5.14.0;
 use warnings;
-use CPAN::Cpanorg::Auxiliary qw(
-    fetch_perl_version_data
-    add_release_metadata
-    write_security_files_and_symlinks
-);
+#use CPAN::Cpanorg::Auxiliary qw(
+#    fetch_perl_version_data
+#    add_release_metadata
+#    write_security_files_and_symlinks
+#);
+use CPAN::Cpanorg::Auxiliary;
 use Carp;
 use Cwd;
-use Data::Dump qw(dd pp);
+use File::Copy;
 use File::Copy::Recursive::Reduced qw(dircopy);
-use File::Path 2.15 qw(make_path);
-use File::Slurp 9999.19;
 use File::Spec;
 use File::Temp qw(tempdir);
-use JSON qw(decode_json);
-use LWP::Simple qw(get);
 use Test::More;
+use Data::Dump qw(dd pp);
+#use File::Path 2.15 qw(make_path);
+#use File::Slurp 9999.19;
+#use JSON qw(decode_json);
+#use LWP::Simple qw(get);
 
 my $cwd = cwd();
 
+{
+    my $tdir = tempdir(CLEANUP => 1);
+    my $from_mockdir = File::Spec->catdir($cwd, 't', 'mockserver');
+    my @created = dircopy($from_mockdir, $tdir);
+    ok(@created, "Copied directories and files for testing");
+    my $mockdata_from = File::Spec->catfile($cwd, 't', 'mock.perl_version_all.json');
+    my $mockdata_to   = File::Spec->catfile($tdir, 'data', 'perl_version_all.json');
+    copy $mockdata_from => $mockdata_to
+        or croak "Unable to copy $mockdata_from for testing";
+
+    my %dirs_required = (
+        CPANdir     => [ $tdir, qw| CPAN | ],
+        srcdir      => [ $tdir, qw| CPAN src | ],
+        fivedir     => [ $tdir, qw| CPAN src 5.0 | ],
+        authorsdir  => [ $tdir, qw| CPAN authors | ],
+        iddir       => [ $tdir, qw| CPAN authors id | ],
+        contentdir  => [ $tdir, qw| content | ],
+        datadir     => [ $tdir, qw| data | ],
+    );
+    for my $el (keys %dirs_required) {
+        my $dir = File::Spec->catdir(@{$dirs_required{$el}});
+        ok(-d $dir, "Created directory '$dir' for testing");
+    }
+
+    my $self = CPAN::Cpanorg::Auxiliary->new({ path => $tdir });
+    ok(defined $self, "new: returned defined value");
+    isa_ok($self, 'CPAN::Cpanorg::Auxiliary');
+dd($self);
+
+    ok(-f $self->{path_versions_json},
+        "$self->{path_versions_json} located for testing.");
+
+    my $mock_api_results = $self->{path_versions_json};
+    no warnings 'redefine';
+    *CPAN::Cpanorg::Auxiliary::make_api_call = sub {
+        my $self = shift;
+        my $json_text;
+        open my $IN, '<', $mock_api_results
+            or croak "Unable to open $mock_api_results for reading";
+        $json_text = <$IN>;
+        while (<$IN>) {
+            chomp;
+            $json_text .= $_;
+        }
+        close $IN
+            or croak "Unable to close $mock_api_results after reading";
+        return $json_text;
+    };
+    use warnings;
+
+    chdir $tdir or croak "Unable to change to $tdir for testing";
+
+    my ( $perl_versions, $perl_testing ) = $self->fetch_perl_version_data;
+    pass($0);
+}
+
+done_testing;
+
+
+__END__
 {
     my $tdir = tempdir(CLEANUP => 1);
     my $datadir = File::Spec->catdir($tdir, 'data');
@@ -203,5 +265,3 @@ my $cwd = cwd();
 
     chdir $cwd or croak "Unable to change back to $cwd";
 }
-
-done_testing;

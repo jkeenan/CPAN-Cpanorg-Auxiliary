@@ -17,8 +17,8 @@ use Carp;
 use File::Spec;
 #use File::Slurp 9999.19 qw(read_file);
 #use JSON ();
-#use LWP::Simple qw(get);
-#use Path::Tiny;
+use LWP::Simple qw(get);
+use Path::Tiny;
 
 =head1 NAME
 
@@ -159,13 +159,133 @@ sub new {
     croak $death_message if @dirs_missing;
 
     for my $dir (keys %dirs_required) {
-        $data{$dir} = $dirs_required{$dir};
+        $data{$dir} = File::Spec->catdir(@{$dirs_required{$dir}});
     }
+    $data{path_versions_json} = File::Spec->catfile(
+        $data{datadir}, $data{versions_json});
 
     return bless \%data, $class;
 }
 
-__END__
+=head2 C<fetch_perl_version_data()>
+
+=over 4
+
+=item * Purpose
+
+Compares JSON data found on disk to result of API call to CPAN for 'perl' distribution.
+
+=item * Arguments
+
+None at the present time.
+
+=item * Return Value
+
+List of two array references:
+
+=over 4
+
+=item *
+
+List of hash references, one per stable perl release.
+
+=item *
+
+List of hash references, one per developmental or RC perl release.
+
+=back
+
+Side effect:  Guarantees existence of file F<data/perl_version_all.json> beneath current working directory.
+
+=item * Comment
+
+Assumes existence of subdirectory F<data/> beneath current working directory.
+
+=back
+
+=cut
+
+sub fetch_perl_version_data {
+    my $self = shift;
+
+    # See what we have on disk
+#    my $f = File::Spec->catfile(
+#        $self->{datadir},
+#        $self->{versions_json},
+#    );
+    my $disk_json = path($self->{path_versions_json})->slurp_utf8
+        if -r $self->{path_versions_json};
+
+    my $cpan_json = $self->make_api_call;
+
+    if ( $cpan_json eq $disk_json ) {
+        # Data has not changed so don't need to do anything
+        return;
+    }
+    else {
+        # Save for next fetch
+        $self->print_file( $cpan_json );
+    }
+
+#    my $json = JSON->new->pretty(1);
+#    my $data = $json->decode($cpan_json);
+#
+#    my @perls;
+#    my @testing;
+#    foreach my $module ( @{ $data->{releases} } ) {
+#        next unless $module->{authorized} eq 'true';
+#        #next unless $module->{authorized};
+#
+#        my $version = $module->{version};
+#
+#        $version =~ s/-(?:RC|TRIAL)\d+$//;
+#        $module->{version_number} = $version;
+#
+#        my ( $major, $minor, $iota ) = split( '[\._]', $version );
+#        $module->{version_major} = $major;
+#
+#        # Silence one warning generated when processing the perl release whose
+#        # distvname was 'perl-5.6-info'
+#        no warnings 'numeric';
+#        $module->{version_minor} = int($minor);
+#        use warnings;
+#
+#        $module->{version_iota}  = int( $iota || '0' );
+#
+#        $module->{type}
+#            = $module->{status} eq 'testing'
+#            ? 'Devel'
+#            : 'Maint';
+#
+#        # TODO: Ask - please add some validation logic here
+#        # so that on live it checks this exists
+#        my $zip_file = $module->{distvname} . '.tar.gz';
+#
+#        $module->{zip_file} = $zip_file;
+#        $module->{url} = "http://www.cpan.org/src/5.0/" . $module->{zip_file};
+#
+#        ( $module->{released_date}, $module->{released_time} )
+#            = split( 'T', $module->{released} );
+#
+#        next if $major < 5;
+#
+#        if ( $module->{status} eq 'stable' ) {
+#            push @perls, $module;
+#        }
+#        else {
+#            push @testing, $module;
+#        }
+#    }
+#    return \@perls, \@testing;
+    return 1;
+}
+
+sub make_api_call {
+    my $self = shift;
+    my $cpan_json = get($self->{search_api_url});
+    die "Unable to fetch $self->{search_api_url}" unless $cpan_json;
+    return $cpan_json;
+}
 
 =head2 C<print_file()>
 
@@ -178,7 +298,7 @@ F<get> call which returns data in JSON format.
 
 =item * Arguments
 
-    write_file($file, $array_ref);
+    $self->print_file($file, $array_ref);
 
 Two arguments:  basename of a file to be written to (implicitly, in a subdirectory called F<data/>); reference to an array of JSON elements.
 
@@ -188,20 +308,18 @@ Implicitly returns true value upon success.  Dies otherwise.
 
 =item * Comment
 
-Currently a wrapper around C<File::Slurp::write_file()>.  With perl 5.26 and
-later, use of File::Slurp throws a deprecation warning.
-
 =back
 
 =cut
 
 sub print_file {
-    my ( $file, $data ) = @_;
-
-    path("data/$file")->spew_utf8($data)
-        or die "Could not write data/$file: $!";
-
+    my ( $self, $data ) = @_;
+    path($self->{path_versions_json})->spew_utf8($data)
+        or croak "Could not write $self->{path_versions_json}";
 }
+
+1;
+__END__
 
 =head2 C<sort_versions()>
 
@@ -266,125 +384,6 @@ sub extract_first_per_version_in_list {
             unless $lookup->{$minor_version};
     }
     return $lookup;
-}
-
-=head2 C<fetch_perl_version_data()>
-
-=over 4
-
-=item * Purpose
-
-Compares JSON data found on disk to result of API call to CPAN for 'perl' distribution.
-
-=item * Arguments
-
-None at the present time.
-
-=item * Return Value
-
-List of two array references:
-
-=over 4
-
-=item *
-
-List of hash references, one per stable perl release.
-
-=item *
-
-List of hash references, one per developmental or RC perl release.
-
-=back
-
-Side effect:  Guarantees existence of file F<data/perl_version_all.json> beneath current working directory.
-
-=item * Comment
-
-Assumes existence of subdirectory F<data/> beneath current working directory.
-
-=back
-
-=cut
-
-sub fetch_perl_version_data {
-
-    my $filename = 'perl_version_all.json';
-
-    # See what we have on disk
-    my $disk_json = '';
-    $disk_json = read_file("data/$filename")
-        if -r "data/$filename";
-
-    my $cpan_json = _make_api_call();
-
-    if ( $cpan_json eq $disk_json ) {
-
-        # Data has not changed so don't need to do anything
-        #exit;
-        return;
-    }
-    else {
-        # Save for next fetch
-        print_file( $filename, $cpan_json );
-    }
-
-    my $json = JSON->new->pretty(1);
-    my $data = $json->decode($cpan_json);
-
-    my @perls;
-    my @testing;
-    foreach my $module ( @{ $data->{releases} } ) {
-        next unless $module->{authorized} eq 'true';
-        #next unless $module->{authorized};
-
-        my $version = $module->{version};
-
-        $version =~ s/-(?:RC|TRIAL)\d+$//;
-        $module->{version_number} = $version;
-
-        my ( $major, $minor, $iota ) = split( '[\._]', $version );
-        $module->{version_major} = $major;
-
-        # Silence one warning generated when processing the perl release whose
-        # distvname was 'perl-5.6-info'
-        no warnings 'numeric';
-        $module->{version_minor} = int($minor);
-        use warnings;
-
-        $module->{version_iota}  = int( $iota || '0' );
-
-        $module->{type}
-            = $module->{status} eq 'testing'
-            ? 'Devel'
-            : 'Maint';
-
-        # TODO: Ask - please add some validation logic here
-        # so that on live it checks this exists
-        my $zip_file = $module->{distvname} . '.tar.gz';
-
-        $module->{zip_file} = $zip_file;
-        $module->{url} = "http://www.cpan.org/src/5.0/" . $module->{zip_file};
-
-        ( $module->{released_date}, $module->{released_time} )
-            = split( 'T', $module->{released} );
-
-        next if $major < 5;
-
-        if ( $module->{status} eq 'stable' ) {
-            push @perls, $module;
-        }
-        else {
-            push @testing, $module;
-        }
-    }
-    return \@perls, \@testing;
-}
-
-sub _make_api_call {
-    my $perl_dist_url = "http://search.cpan.org/api/dist/perl";
-    my $cpan_json = get($perl_dist_url);
-    die "Unable to fetch $perl_dist_url" unless $cpan_json;
-    return $cpan_json;
 }
 
 sub add_release_metadata {
