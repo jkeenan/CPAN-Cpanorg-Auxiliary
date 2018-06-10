@@ -387,6 +387,72 @@ sub file_meta {
     };
 }
 
+sub write_security_files_and_symlinks {
+    my $self = shift;
+    my ($perl_versions, $perl_testing) = @_;
+
+    chdir $self->{srcdir} or croak "Unable to chdir to $self->{srcdir}";
+
+    foreach my $perl ( ( @{$perl_versions}, @{$perl_testing} ) ) {
+
+        # For a perl e.g. perl-5.12.4-RC1
+        # create or symlink:
+        foreach my $file ( @{ $perl->{files} } ) {
+
+            my $filename = $file->{file};
+            my $out = "5.0/" . $file->{filename};
+
+            foreach my $security (qw(md5 sha1 sha256)) {
+
+                print_file_if_different( "${out}.${security}.txt",
+                    $file->{$security} );
+            }
+
+            my $target;
+            my ($authors_dir) = $file->{filedir} =~ s/^.*?(authors.*)$/$1/r;
+            $target = File::Spec->catfile('..', '..', $authors_dir, $file->{filename});
+            create_symlink( $target, $out );
+
+            # only link stable versions directly from src/
+            next unless $perl->{status} eq 'stable';
+            $target = File::Spec->catfile('..', $authors_dir, $file->{filename});
+            create_symlink( $target, $file->{filename} );
+        }
+    }
+    return 1;
+}
+
+sub print_file_if_different {
+    my ( $file, $data ) = @_;
+
+    if ( -r $file ) {
+        my $content = path($file)->slurp_utf8;
+        return if $content eq $data;
+    }
+
+    path($file)->spew_utf8($data)
+        or die "Could not write $file: $!";
+}
+
+=head2 create_symlink
+
+    create_symlink($oldfile, $newfile);
+
+Will unlink $newfile if it already exists and then create
+the symlink.
+
+=cut
+
+sub create_symlink {
+    my ( $oldfile, $newfile ) = @_;
+
+    # Clean out old symlink if it does not point to correct location
+    if ( -l $newfile && readlink($newfile) ne $oldfile ) {
+        unlink($newfile);
+    }
+    symlink( $oldfile, $newfile ) unless -l $newfile;
+}
+
 1;
 
 __END__
@@ -458,71 +524,6 @@ sub extract_first_per_version_in_list {
 
 # write_security_files_and_symlinks() assumes existence of directories 'src'
 # and 'src/5.0'
-
-sub write_security_files_and_symlinks {
-    my ($perl_versions, $perl_testing) = @_;
-
-    my $thiscwd = cwd();
-    foreach my $perl ( ( @{$perl_versions}, @{$perl_testing} ) ) {
-
-        # For a perl e.g. perl-5.12.4-RC1
-        # create or symlink:
-        foreach my $file ( @{ $perl->{files} } ) {
-
-            my $filename = $file->{file};
-            my $out = "5.0/" . $file->{filename};
-
-            foreach my $security (qw(md5 sha1 sha256)) {
-                #say "GGG: qq|${out}.${security}.txt|";
-
-                print_file_if_different( "${out}.${security}.txt",
-                    $file->{$security} );
-            }
-
-            my $target;
-            my ($authors_dir) = $file->{filedir} =~ s/^.*?(authors.*)$/$1/r;
-            $target = File::Spec->catfile('..', '..', $authors_dir, $file->{filename});
-            create_symlink( $target, $out );
-
-            # only link stable versions directly from src/
-            next unless $perl->{status} eq 'stable';
-            $target = File::Spec->catfile('..', $authors_dir, $file->{filename});
-            create_symlink( $target, $file->{filename} );
-        }
-    }
-    return 1;
-}
-
-sub print_file_if_different {
-    my ( $file, $data ) = @_;
-
-    if ( -r $file ) {
-        my $content = read_file($file);
-        return if $content eq $data;
-    }
-
-    path($file)->spew_utf8($data)
-        or die "Could not write $file: $!";
-}
-
-=head2 create_symlink
-
-    create_symlink($oldfile, $newfile);
-
-Will unlink $newfile if it already exists and then create
-the symlink.
-
-=cut
-
-sub create_symlink {
-    my ( $oldfile, $newfile ) = @_;
-
-    # Clean out old symlink if it does not point to correct location
-    if ( -l $newfile && readlink($newfile) ne $oldfile ) {
-        unlink($newfile);
-    }
-    symlink( $oldfile, $newfile ) unless -l $newfile;
-}
 
 1;
 
