@@ -16,7 +16,7 @@ use Carp;
 #use File::Basename qw(basename dirname);
 use File::Spec;
 #use File::Slurp 9999.19 qw(read_file);
-#use JSON ();
+use JSON ();
 use LWP::Simple qw(get);
 use Path::Tiny;
 
@@ -137,6 +137,7 @@ sub new {
     my %data = map { $_ => $args->{$_} } keys %{$args};
     $data{versions_json} ||= 'perl_version_all.json';
     $data{search_api_url} ||= "http://search.cpan.org/api/dist/perl";
+    $data{five_url} ||= "http://www.cpan.org/src/5.0/";
 
     my %dirs_required = (
         CPANdir     => [ $data{path}, qw| CPAN | ],
@@ -209,10 +210,6 @@ sub fetch_perl_version_data {
     my $self = shift;
 
     # See what we have on disk
-#    my $f = File::Spec->catfile(
-#        $self->{datadir},
-#        $self->{versions_json},
-#    );
     my $disk_json = path($self->{path_versions_json})->slurp_utf8
         if -r $self->{path_versions_json};
 
@@ -227,57 +224,56 @@ sub fetch_perl_version_data {
         $self->print_file( $cpan_json );
     }
 
-#    my $json = JSON->new->pretty(1);
-#    my $data = $json->decode($cpan_json);
-#
-#    my @perls;
-#    my @testing;
-#    foreach my $module ( @{ $data->{releases} } ) {
-#        next unless $module->{authorized} eq 'true';
-#        #next unless $module->{authorized};
-#
-#        my $version = $module->{version};
-#
-#        $version =~ s/-(?:RC|TRIAL)\d+$//;
-#        $module->{version_number} = $version;
-#
-#        my ( $major, $minor, $iota ) = split( '[\._]', $version );
-#        $module->{version_major} = $major;
-#
-#        # Silence one warning generated when processing the perl release whose
-#        # distvname was 'perl-5.6-info'
-#        no warnings 'numeric';
-#        $module->{version_minor} = int($minor);
-#        use warnings;
-#
-#        $module->{version_iota}  = int( $iota || '0' );
-#
-#        $module->{type}
-#            = $module->{status} eq 'testing'
-#            ? 'Devel'
-#            : 'Maint';
-#
-#        # TODO: Ask - please add some validation logic here
-#        # so that on live it checks this exists
-#        my $zip_file = $module->{distvname} . '.tar.gz';
-#
-#        $module->{zip_file} = $zip_file;
-#        $module->{url} = "http://www.cpan.org/src/5.0/" . $module->{zip_file};
-#
-#        ( $module->{released_date}, $module->{released_time} )
-#            = split( 'T', $module->{released} );
-#
-#        next if $major < 5;
-#
-#        if ( $module->{status} eq 'stable' ) {
-#            push @perls, $module;
-#        }
-#        else {
-#            push @testing, $module;
-#        }
-#    }
-#    return \@perls, \@testing;
-    return 1;
+    my $json = JSON->new->pretty(1);
+    my $data = $json->decode($cpan_json);
+
+    my @perls;
+    my @testing;
+    foreach my $module ( @{ $data->{releases} } ) {
+        #next unless $module->{authorized} eq 'true';
+        #next unless $module->{authorized};
+
+        my $version = $module->{version};
+
+        $version =~ s/-(?:RC|TRIAL)\d+$//;
+        $module->{version_number} = $version;
+
+        my ( $major, $minor, $iota ) = split( '[\._]', $version );
+        $module->{version_major} = $major;
+
+        # Silence one warning generated when processing the perl release whose
+        # distvname was 'perl-5.6-info'
+        no warnings 'numeric';
+        $module->{version_minor} = int($minor);
+        use warnings;
+
+        $module->{version_iota}  = int( $iota || '0' );
+
+        $module->{type}
+            = $module->{status} eq 'testing'
+            ? 'Devel'
+            : 'Maint';
+
+        # TODO: Ask - please add some validation logic here
+        # so that on live it checks this exists
+        my $zip_file = $module->{distvname} . '.tar.gz';
+
+        $module->{zip_file} = $zip_file;
+        $module->{url} = $self->{five_url} . $module->{zip_file};
+
+        ( $module->{released_date}, $module->{released_time} )
+            = split( 'T', $module->{released} );
+
+        next if $major < 5;
+
+        if ( $module->{status} eq 'stable' ) {
+            push @perls, $module;
+        }
+        else {
+            push @testing, $module;
+        }
+    }
+    return \@perls, \@testing;
 }
 
 sub make_api_call {

@@ -95,6 +95,8 @@ my $cwd = cwd();
         "Attribute 'versions_json' has non-zero-length string '$self->{versions_json}' for value");
     ok(length($self->{search_api_url}),
         "Attribute 'search_api_url' has non-zero-length string '$self->{search_api_url}' for value");
+    ok(length($self->{five_url}),
+        "Attribute 'five_url' has non-zero-length string '$self->{five_url}' for value");
 
 }
 

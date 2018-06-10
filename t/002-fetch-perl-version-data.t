@@ -75,7 +75,18 @@ dd($self);
     chdir $tdir or croak "Unable to change to $tdir for testing";
 
     my ( $perl_versions, $perl_testing ) = $self->fetch_perl_version_data;
-    pass($0);
+    for ( $perl_versions, $perl_testing ) {
+        ok(defined $_, "fetch_perl_version_data() returned defined value");
+        ok(ref($_) eq 'ARRAY', "fetch_perl_version_data() returned arrayref");
+    }
+    my $spv = scalar @{$perl_versions};
+    my $spt = scalar @{$perl_testing};
+    ok($spv,
+        "fetch_perl_version_data() found non-zero number ($spv) of stable releases");
+    ok($spt,
+        "fetch_perl_version_data() found non-zero number ($spt) of dev or RC releases");
+
+    chdir $cwd or croak "Unable to change back to $cwd";
 }
 
 done_testing;
