@@ -4,11 +4,10 @@ use warnings;
 use CPAN::Cpanorg::Auxiliary;
 use Carp;
 use Cwd;
-use File::Copy::Recursive::Reduced qw(dircopy);
-use File::Spec;
 use File::Temp qw(tempdir);
 use Test::More;
-use Data::Dump qw(dd pp);
+use lib ('./t/testlib');
+use Helpers qw(basic_test_setup);
 
 my ($self);
 my $cwd = cwd();
@@ -69,24 +68,7 @@ my $cwd = cwd();
 ##### GOOD ARGUMENTS #####
 
 {
-    my $tdir = tempdir(CLEANUP => 1);
-    my $from_mockdir = File::Spec->catdir($cwd, 't', 'mockserver');
-    my @created = dircopy($from_mockdir, $tdir);
-    ok(@created, "Copied directories and files for testing");
-
-    my %dirs_required = (
-        CPANdir     => [ $tdir, qw| CPAN | ],
-        srcdir      => [ $tdir, qw| CPAN src | ],
-        fivedir     => [ $tdir, qw| CPAN src 5.0 | ],
-        authorsdir  => [ $tdir, qw| CPAN authors | ],
-        iddir       => [ $tdir, qw| CPAN authors id | ],
-        contentdir  => [ $tdir, qw| content | ],
-        datadir     => [ $tdir, qw| data | ],
-    );
-    for my $el (keys %dirs_required) {
-        my $dir = File::Spec->catdir(@{$dirs_required{$el}});
-        ok(-d $dir, "Created directory '$dir' for testing");
-    }
+    my $tdir = basic_test_setup($cwd);
 
     $self = CPAN::Cpanorg::Auxiliary->new({ path => $tdir });
     ok(defined $self, "new: returned defined value");
@@ -101,8 +83,3 @@ my $cwd = cwd();
 }
 
 done_testing;
-
-__END__
-#    $self = CPAN::Cpanorg::Auxiliary->new({ path => $tdir });
-#    ok(defined $self, "new: returned defined value");
-#    isa_ok($self, 'CPAN::Cpanorg::Auxiliary');

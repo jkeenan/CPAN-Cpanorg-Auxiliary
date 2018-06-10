@@ -7,6 +7,7 @@ not_yet/001-print-file.t
 README
 t/001-new.t
 t/002-fetch-perl-version-data.t
+t/003-make-api-call.t
 t/mock.perl_version_all.json
 t/mockserver/CPAN/authors/id/A/AB/ABIGAIL/CHECKSUMS
 t/mockserver/CPAN/authors/id/A/AB/ABIGAIL/perl-5.27.8.tar.gz
@@ -37,4 +38,5 @@ t/mockserver/CPAN/authors/id/X/XS/XSAWYERX/perl-5.26.0.tar.gz
 t/mockserver/CPAN/authors/id/X/XS/XSAWYERX/perl-5.27.11.tar.gz
 t/mockserver/CPAN/authors/id/X/XS/XSAWYERX/perl-5.28.0-RC1.tar.gz
 t/mockserver/CPAN/authors/id/X/XS/XSAWYERX/perl-5.28.0-RC2.tar.gz
+t/testlib/Helpers.pm
 Todo

@@ -1,24 +1,14 @@
 package CPAN::Cpanorg::Auxiliary;
 use 5.14.0;
 use warnings;
-#use parent 'Exporter';
 our $VERSION = '0.01';
-#our @EXPORT_OK = qw(
-#    print_file
-#    fetch_perl_version_data
-#    sort_versions
-#    extract_first_per_version_in_list
-#    add_release_metadata
-#    write_security_files_and_symlinks
-#);
 use Carp;
-#use Cwd;
-#use File::Basename qw(basename dirname);
+use File::Basename qw(basename dirname);
 use File::Spec;
-#use File::Slurp 9999.19 qw(read_file);
 use JSON ();
 use LWP::Simple qw(get);
 use Path::Tiny;
+use Data::Dump qw(dd pp);
 
 =head1 NAME
 
@@ -314,7 +304,91 @@ sub print_file {
         or croak "Could not write $self->{path_versions_json}";
 }
 
+sub add_release_metadata {
+    my $self = shift;
+    my ($perl_versions, $perl_testing) = @_;
+    #dd($perl_versions, $perl_testing );
+
+    chdir $self->{CPANdir} or croak "Unable to chdir to $self->{CPANdir}";
+
+    # check disk for files
+    foreach my $perl ( @{$perl_versions}, @{$perl_testing} ) {
+        my $id = $perl->{cpanid};
+
+        if ( $id =~ /^(.)(.)/ ) {
+            my $path     = "authors/id/$1/$1$2/$id";
+            my $fileroot = "$path/" . $perl->{distvname};
+            my @files    = glob("${fileroot}.*tar.*");
+
+            die "Could not find perl ${fileroot}.*" unless scalar(@files);
+
+            $perl->{files} = [];
+            # The file_meta() sub in bin/perl-sorter.pl assumes the presence
+            # of checksum files for each perl release.
+            foreach my $file (@files) {
+                my $ffile = File::Spec->catfile($self->{CPANdir}, $file);
+                my $meta = file_meta($ffile);
+                push( @{ $perl->{files} }, $meta );
+            }
+        }
+    }
+    return ($perl_versions, $perl_testing);
+}
+
+=head2 file_meta
+
+    my $meta = file_meta($file);
+
+	print $meta->{file};
+	print $meta->{filename};
+	print $meta->{filedir};
+    print $meta->{md5};
+    print $meta->{sha256};
+    print $meta->{mtime};
+    print $meta->{sha1};
+
+Get or calculate meta information about a file
+
+=cut
+
+sub file_meta {
+    my $file     = shift;
+    my $filename = basename($file);
+    my $dir      = dirname($file);
+    my $checksum = File::Spec->catfile($dir, 'CHECKSUMS');
+
+    # The CHECKSUM file has already calculated
+    # lots of this so use that
+    my $cksum;
+    unless ( defined( $cksum = do $checksum ) ) {
+        die qq[Checksums file "$checksum" not found\n];
+    }
+
+    # Calculate the sha1
+    my $sha1;
+    if ( open( my $fh, "openssl sha1 $file |" ) ) {
+        while (<$fh>) {
+            if (/^SHA1\(.+?\)= ([0-9a-f]+)$/) {
+                $sha1 = $1;
+                last;
+            }
+        }
+    }
+    die qq[Failed to compute sha1 for $file\n] unless defined $sha1;
+
+    return {
+        file     => $file,
+        filedir  => $dir,
+        filename => $filename,
+        mtime    => ( stat($file) )[9],
+        md5      => $cksum->{$filename}->{md5},
+        sha256   => $cksum->{$filename}->{sha256},
+        sha1     => $sha1,
+    };
+}
+
 1;
+
 __END__
 
 =head2 C<sort_versions()>
@@ -382,36 +456,6 @@ sub extract_first_per_version_in_list {
     return $lookup;
 }
 
-sub add_release_metadata {
-    my ($perl_versions, $perl_testing) = @_;
-
-    my $thiscwd = cwd();
-
-    # check disk for files
-    foreach my $perl ( @{$perl_versions}, @{$perl_testing} ) {
-        #say join('|' => $perl->{version}, $perl->{cpanid});
-        my $id = $perl->{cpanid};
-
-        if ( $id =~ /^(.)(.)/ ) {
-            my $path     = "authors/id/$1/$1$2/$id";
-            my $fileroot = "$path/" . $perl->{distvname};
-            my @files    = glob("${fileroot}.*tar.*");
-
-            die "Could not find perl ${fileroot}.*" unless scalar(@files);
-
-            $perl->{files} = [];
-            # The file_meta() sub in bin/perl-sorter.pl assumes the presence
-            # of checksum files for each perl release.
-            foreach my $file (@files) {
-                my $ffile = File::Spec->catfile($thiscwd, $file);
-                my $meta = file_meta($ffile);
-                push( @{ $perl->{files} }, $meta );
-            }
-        }
-    }
-    return ($perl_versions, $perl_testing);
-}
-
 # write_security_files_and_symlinks() assumes existence of directories 'src'
 # and 'src/5.0'
 
@@ -447,58 +491,6 @@ sub write_security_files_and_symlinks {
         }
     }
     return 1;
-}
-
-=head2 file_meta
-
-    my $meta = file_meta($file);
-
-	print $meta->{file};
-	print $meta->{filename};
-	print $meta->{filedir};
-    print $meta->{md5};
-    print $meta->{sha256};
-    print $meta->{mtime};
-    print $meta->{sha1};
-
-Get or calculate meta information about a file
-
-=cut
-
-sub file_meta {
-    my $file     = shift;
-    my $filename = basename($file);
-    my $dir      = dirname($file);
-    my $checksum = File::Spec->catfile($dir, 'CHECKSUMS');
-
-    # The CHECKSUM file has already calculated
-    # lots of this so use that
-    my $cksum;
-    unless ( defined( $cksum = do $checksum ) ) {
-        die qq[Checksums file "$checksum" not found\n];
-    }
-
-    # Calculate the sha1
-    my $sha1;
-    if ( open( my $fh, "openssl sha1 $file |" ) ) {
-        while (<$fh>) {
-            if (/^SHA1\(.+?\)= ([0-9a-f]+)$/) {
-                $sha1 = $1;
-                last;
-            }
-        }
-    }
-    die qq[Failed to compute sha1 for $file\n] unless defined $sha1;
-
-    return {
-        file     => $file,
-        filedir  => $dir,
-        filename => $filename,
-        mtime    => ( stat($file) )[9],
-        md5      => $cksum->{$filename}->{md5},
-        sha256   => $cksum->{$filename}->{sha256},
-        sha1     => $sha1,
-    };
 }
 
 sub print_file_if_different {
