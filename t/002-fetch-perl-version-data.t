@@ -9,7 +9,7 @@ use File::Spec;
 use Test::More;
 use lib ('./t/testlib');
 use Helpers qw(basic_test_setup);
-use Data::Dump qw(dd pp);
+#use Data::Dump qw(dd pp);
 
 my $cwd = cwd();
 
@@ -115,32 +115,37 @@ my $cwd = cwd();
 
     my $rv = $self->write_security_files_and_symlinks;
     ok($rv, "write_security_files_and_symlinks() returned true value");
-    my @expected_security_files =
-        map { File::Spec->catfile(
-            '5.0',
-            "perl-5.27.11.tar.gz." . $_ . ".txt"
-        ) }
-        qw( sha1 sha256 md5 );
-    for my $security (@expected_security_files) {
-        ok(-f $security, "Security file '$security' located");
+
+    {
+        note("Test creation of security files");
+        my @expected_security_files =
+            map { File::Spec->catfile(
+                '5.0',
+                "perl-5.27.11.tar.gz." . $_ . ".txt"
+            ) }
+            qw( sha1 sha256 md5 );
+        for my $security (@expected_security_files) {
+            ok(-f $security, "Security file '$security' located");
+        }
     }
 
-    note("Test creation of symlinks");
     {
+        note("Test creation of symlinks");
+
         my ($expected_symlink, $target);
+
+        note("Latest dev release in sample");
         $expected_symlink = File::Spec->catfile(
                 '5.0',
                 "perl-5.27.11.tar.gz"
         );
         ok(-l $expected_symlink, "Found symlink '$expected_symlink'");
         $target = readlink($expected_symlink);
-        chdir '5.0' or croak "Unable to chdir to 5.0";
         chdir $self->{fivedir} or croak "Unable to chdir to $self->{fivedir}";
-        ok(-f $target, "Found target of symlink: '$target'");
+        ok(-f $target, "Found target of symlink '$expected_symlink': '$target'");
         chdir $self->{srcdir} or croak "Unable to change back to $self->{srcdir}";
-    }
-    {
-        my ($expected_symlink, $target);
+
+        note("A stable release, from 5.0 directory");
         $expected_symlink = File::Spec->catfile(
                 '5.0',
                 "perl-5.26.0.tar.gz"
@@ -148,14 +153,34 @@ my $cwd = cwd();
         ok(-l $expected_symlink, "Found symlink '$expected_symlink'");
         $target = readlink($expected_symlink);
         chdir $self->{fivedir} or croak "Unable to chdir to $self->{fivedir}";
-        ok(-f $target, "Found target of symlink: '$target'");
+        ok(-f $target, "Found target of symlink '$expected_symlink': '$target'");
         chdir $self->{srcdir} or croak "Unable to change back to $self->{srcdir}";
-    }
-    {
-        my ($expected_symlink, $target);
+
+        note("A stable release");
         $expected_symlink = File::Spec->catfile("perl-5.26.0.tar.gz");
         $target = readlink($expected_symlink);
-        ok(-f $target, "Found target of symlink: '$target'");
+        ok(-f $target, "Found target of symlink '$expected_symlink': '$target'");
+    }
+
+    $rv = $self->create_latest_only_symlinks;
+    ok($rv, "create_latest_only_symlinks() returned true value");
+
+    {
+        note("Test creation of 'latest' and 'stable' symlinks");
+        chdir $self->{srcdir} or croak "Unable to change back to $self->{srcdir}";
+        my ($expected_symlink, $latest_target, $stable_target);
+
+        note("latest");
+        $expected_symlink = File::Spec->catfile("latest.tar.gz");
+        $latest_target = readlink($expected_symlink);
+        ok(-f $latest_target, "Found target of symlink '$expected_symlink': '$latest_target'");
+
+        note("stable");
+        $expected_symlink = File::Spec->catfile("stable.tar.gz");
+        $stable_target = readlink($expected_symlink);
+        ok(-f $stable_target, "Found target of symlink '$expected_symlink': '$stable_target'");
+        cmp_ok($latest_target, 'eq', $stable_target,
+            "'latest' and 'stable' point to the same release");
     }
 
     chdir $cwd or croak "Unable to change back to $cwd";

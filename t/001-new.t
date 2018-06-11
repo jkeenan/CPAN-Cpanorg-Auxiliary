@@ -79,6 +79,8 @@ my $cwd = cwd();
         "Attribute 'search_api_url' has non-zero-length string '$self->{search_api_url}' for value");
     ok(length($self->{five_url}),
         "Attribute 'five_url' has non-zero-length string '$self->{five_url}' for value");
+    is($self->{cwd}, $cwd,
+        "Current working directory at time of construction stored in object");
 
 }
 

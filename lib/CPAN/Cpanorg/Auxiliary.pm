@@ -3,12 +3,13 @@ use 5.14.0;
 use warnings;
 our $VERSION = '0.01';
 use Carp;
+use Cwd;
 use File::Basename qw(basename dirname);
 use File::Spec;
 use JSON ();
 use LWP::Simple qw(get);
 use Path::Tiny;
-use Data::Dump qw(dd pp);
+#use Data::Dump qw(dd pp);
 
 =head1 NAME
 
@@ -125,6 +126,7 @@ sub new {
     croak "Could not locate directory '$args->{path}'" unless (-d $args->{path});
 
     my %data = map { $_ => $args->{$_} } keys %{$args};
+    $data{cwd} = cwd();
     $data{versions_json} ||= 'perl_version_all.json';
     $data{search_api_url} ||= "http://search.cpan.org/api/dist/perl";
     $data{five_url} ||= "http://www.cpan.org/src/5.0/";
@@ -246,10 +248,8 @@ sub fetch_perl_version_data {
 
         # TODO: Ask - please add some validation logic here
         # so that on live it checks this exists
-        my $zip_file = $module->{distvname} . '.tar.gz';
-
-        $module->{zip_file} = $zip_file;
-        $module->{url} = $self->{five_url} . $module->{zip_file};
+        $module->{zip_file} = $module->{distvname} . '.tar.gz';
+        $module->{url}      = $self->{five_url} . $module->{zip_file};
 
         ( $module->{released_date}, $module->{released_time} )
             = split( 'T', $module->{released} );
@@ -278,6 +278,110 @@ sub make_api_call {
     die "Unable to fetch $self->{search_api_url}" unless $cpan_json;
     return $cpan_json;
 }
+
+sub add_release_metadata {
+    my $self = shift;
+
+    chdir $self->{CPANdir} or croak "Unable to chdir to $self->{CPANdir}";
+
+    # check disk for files
+    foreach my $perl ( @{$self->{perl_versions}}, @{$self->{perl_testing}} ) {
+        my $id = $perl->{cpanid};
+
+        if ( $id =~ /^(.)(.)/ ) {
+            my $path     = "authors/id/$1/$1$2/$id";
+            my $fileroot = "$path/" . $perl->{distvname};
+            my @files    = glob("${fileroot}.*tar.*");
+
+            die "Could not find perl ${fileroot}.*" unless scalar(@files);
+
+            $perl->{files} = [];
+            # The file_meta() sub in bin/perl-sorter.pl assumes the presence
+            # of checksum files for each perl release.
+            foreach my $file (@files) {
+                my $ffile = File::Spec->catfile($self->{CPANdir}, $file);
+                my $meta = file_meta($ffile);
+                push( @{ $perl->{files} }, $meta );
+            }
+        }
+    }
+}
+
+sub write_security_files_and_symlinks {
+    my $self = shift;
+
+    chdir $self->{srcdir} or croak "Unable to chdir to $self->{srcdir}";
+
+    foreach my $perl ( @{$self->{perl_versions}}, @{$self->{perl_testing}} ) {
+
+        # For a perl e.g. perl-5.12.4-RC1
+        # create or symlink:
+        foreach my $file ( @{ $perl->{files} } ) {
+
+            my $filename = $file->{file};
+            my $out = "5.0/" . $file->{filename};
+
+            foreach my $security (qw(md5 sha1 sha256)) {
+
+                print_file_if_different( "${out}.${security}.txt",
+                    $file->{$security} );
+            }
+
+            my $target;
+            my ($authors_dir) = $file->{filedir} =~ s/^.*?(authors.*)$/$1/r;
+            $target = File::Spec->catfile('..', '..', $authors_dir, $file->{filename});
+            create_symlink( $target, $out );
+
+            # only link stable versions directly from src/
+            next unless $perl->{status} eq 'stable';
+            $target = File::Spec->catfile('..', $authors_dir, $file->{filename});
+            create_symlink( $target, $file->{filename} );
+        }
+    }
+    return 1;
+}
+
+## Latest only symlinks
+## /src/latest.tar....
+## /src/stable.tar....
+# per: https://www.cpan.org/src/ (retrieved Jun 10 2018)
+# The "latest" and "stable" are now just aliases for "maint", and "maint" in
+# turn is the maintenance branch with the largest release number. 
+sub create_latest_only_symlinks {
+    my $self = shift;;
+
+    chdir $self->{srcdir} or croak "Unable to chdir to $self->{srcdir}";
+
+    my ($perl_versions, $perl_testing) = $self->get_perl_versions_and_testing;
+    my $latest_perl_version
+        = extract_first_perl_version_in_list($perl_versions);
+
+    my $latest = sort_versions( [ values %{$latest_perl_version} ] )->[0];
+
+    foreach my $file ( @{ $latest->{files} } ) {
+
+        my ($authors_dir) = $file->{filedir} =~ s/^.*?(authors.*)$/$1/r;
+        my $out_latest
+            = $file->{file} =~ /bz2/
+            ? "latest.tar.bz2"
+            : "latest.tar.gz";
+
+        my $target = File::Spec->catfile('..', $authors_dir, $file->{filename});
+        create_symlink( $target, $out_latest );
+
+        my $out_stable
+            = $file->{file} =~ /bz2/
+            ? "stable.tar.bz2"
+            : "stable.tar.gz";
+
+        create_symlink( $target, $out_stable );
+    }
+    
+    chdir $self->{cwd} or croak "Could not change back to starting point";
+    return 1;
+}
+
+##### INTERNAL METHODS #####
 
 =head2 C<print_file()>
 
@@ -310,33 +414,7 @@ sub print_file {
         or croak "Could not write $self->{path_versions_json}";
 }
 
-sub add_release_metadata {
-    my $self = shift;
-
-    chdir $self->{CPANdir} or croak "Unable to chdir to $self->{CPANdir}";
-
-    # check disk for files
-    foreach my $perl ( @{$self->{perl_versions}}, @{$self->{perl_testing}} ) {
-        my $id = $perl->{cpanid};
-
-        if ( $id =~ /^(.)(.)/ ) {
-            my $path     = "authors/id/$1/$1$2/$id";
-            my $fileroot = "$path/" . $perl->{distvname};
-            my @files    = glob("${fileroot}.*tar.*");
-
-            die "Could not find perl ${fileroot}.*" unless scalar(@files);
-
-            $perl->{files} = [];
-            # The file_meta() sub in bin/perl-sorter.pl assumes the presence
-            # of checksum files for each perl release.
-            foreach my $file (@files) {
-                my $ffile = File::Spec->catfile($self->{CPANdir}, $file);
-                my $meta = file_meta($ffile);
-                push( @{ $perl->{files} }, $meta );
-            }
-        }
-    }
-}
+##### INTERNAL SUBROUTINES #####
 
 =head2 file_meta
 
@@ -390,40 +468,6 @@ sub file_meta {
     };
 }
 
-sub write_security_files_and_symlinks {
-    my $self = shift;
-
-    chdir $self->{srcdir} or croak "Unable to chdir to $self->{srcdir}";
-
-    foreach my $perl ( @{$self->{perl_versions}}, @{$self->{perl_testing}} ) {
-
-        # For a perl e.g. perl-5.12.4-RC1
-        # create or symlink:
-        foreach my $file ( @{ $perl->{files} } ) {
-
-            my $filename = $file->{file};
-            my $out = "5.0/" . $file->{filename};
-
-            foreach my $security (qw(md5 sha1 sha256)) {
-
-                print_file_if_different( "${out}.${security}.txt",
-                    $file->{$security} );
-            }
-
-            my $target;
-            my ($authors_dir) = $file->{filedir} =~ s/^.*?(authors.*)$/$1/r;
-            $target = File::Spec->catfile('..', '..', $authors_dir, $file->{filename});
-            create_symlink( $target, $out );
-
-            # only link stable versions directly from src/
-            next unless $perl->{status} eq 'stable';
-            $target = File::Spec->catfile('..', $authors_dir, $file->{filename});
-            create_symlink( $target, $file->{filename} );
-        }
-    }
-    return 1;
-}
-
 sub print_file_if_different {
     my ( $file, $data ) = @_;
 
@@ -454,10 +498,6 @@ sub create_symlink {
     }
     symlink( $oldfile, $newfile ) unless -l $newfile;
 }
-
-1;
-
-__END__
 
 =head2 C<sort_versions()>
 
@@ -494,7 +534,7 @@ sub sort_versions {
 
 }
 
-=head2 C<extract_first_per_version_in_list()>
+=head2 C<extract_first_perl_version_in_list()>
 
 =over 4
 
@@ -510,7 +550,7 @@ sub sort_versions {
 
 =cut
 
-sub extract_first_per_version_in_list {
+sub extract_first_perl_version_in_list {
     my $versions = shift;
 
     my $lookup = {};
@@ -524,8 +564,7 @@ sub extract_first_per_version_in_list {
     return $lookup;
 }
 
-# write_security_files_and_symlinks() assumes existence of directories 'src'
-# and 'src/5.0'
-
 1;
+
+__END__
 
