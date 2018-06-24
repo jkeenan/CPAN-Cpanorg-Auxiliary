@@ -191,7 +191,8 @@ List of hash references, one per developmental or RC perl release.
 
 =back
 
-Side effect:  Guarantees existence of file F<data/perl_version_all.json> beneath current working directory.
+Side effect:  Guarantees existence of file F<data/perl_version_all.json>
+beneath the top-level directory.
 
 =item * Comment
 
@@ -270,17 +271,25 @@ sub fetch_perl_version_data {
     $self->{perl_testing} = \@testing;
 }
 
-sub get_perl_versions_and_testing {
-    my $self = shift;
-    return ( $self->{perl_versions} || {}, $self->{perl_testing} || {} );
-}
+=head2 C<add_release_metadata()>
 
-sub make_api_call {
-    my $self = shift;
-    my $cpan_json = get($self->{search_api_url});
-    die "Unable to fetch $self->{search_api_url}" unless $cpan_json;
-    return $cpan_json;
-}
+=over 4
+
+=item * Purpose
+
+Enhance object's data structures with metadata about perl releases.
+
+=item * Arguments
+
+None.
+
+=item * Return Value
+
+None.
+
+=back
+
+=cut
 
 sub add_release_metadata {
     my $self = shift;
@@ -309,6 +318,26 @@ sub add_release_metadata {
         }
     }
 }
+
+=head2 C<write_security_files_and_symlinks()>
+
+=over 4
+
+=item * Purpose
+
+For each perl release, create three security files: C<md5 sha1 sha256>.  Create symlinks from the F<src> and F<src/5.0> directories to the originals underneath the release manager's directory under F<authors/id>.
+
+=item * Arguments
+
+None.
+
+=item * Return Value
+
+Returns true value upon success.
+
+=back
+
+=cut
 
 sub write_security_files_and_symlinks {
     my $self = shift;
@@ -344,12 +373,37 @@ sub write_security_files_and_symlinks {
     return 1;
 }
 
-## Latest only symlinks
-## /src/latest.tar....
-## /src/stable.tar....
-# per: https://www.cpan.org/src/ (retrieved Jun 10 2018)
-# The "latest" and "stable" are now just aliases for "maint", and "maint" in
-# turn is the maintenance branch with the largest release number. 
+=head2 C<create_latest_only_symlinks()>
+
+=over 4
+
+=item * Purpose
+
+Create two symlinks in F<src> directory:
+
+    /src/latest.tar....
+    /src/stable.tar....
+
+One symlink for each compression format for a particular release.
+
+=item * Arguments
+
+None.
+
+=item * Return Value
+
+Returns true value upon success.
+
+=item * Comment
+
+Per L<https://www.cpan.org/src/> (retrieved Jun 10 2018):
+The "latest" and "stable" are now just aliases for "maint", and "maint" in
+turn is the maintenance branch with the largest release number. 
+
+=back
+
+=cut
+
 sub create_latest_only_symlinks {
     my $self = shift;
 
@@ -385,6 +439,23 @@ sub create_latest_only_symlinks {
 }
 
 ##### INTERNAL METHODS #####
+
+# make_api_call(): Called within fetch_perl_version_data()
+
+sub make_api_call {
+    my $self = shift;
+    my $cpan_json = get($self->{search_api_url});
+    die "Unable to fetch $self->{search_api_url}" unless $cpan_json;
+    return $cpan_json;
+}
+
+# get_perl_versions_and_testing(): Called within create_latest_only_symlinks()
+
+sub get_perl_versions_and_testing {
+    my $self = shift;
+    return ( $self->{perl_versions} || {}, $self->{perl_testing} || {} );
+}
+
 
 =head2 C<print_file()>
 
