@@ -81,7 +81,19 @@ my $cwd = cwd();
         "Attribute 'five_url' has non-zero-length string '$self->{five_url}' for value");
     is($self->{cwd}, $cwd,
         "Current working directory at time of construction stored in object");
+}
 
+{
+    note("Demonstrate that certain values can be passed to constructor");
+    my $tdir = basic_test_setup($cwd);
+
+    $self = CPAN::Cpanorg::Auxiliary->new({
+        path => $tdir,
+        versions_json => 'perl_version_all.json',
+        search_api_url => 'http://search.cpan.org/api/dist/perl',
+    });
+    ok(defined $self, "new: returned defined value");
+    isa_ok($self, 'CPAN::Cpanorg::Auxiliary');
 }
 
 done_testing;

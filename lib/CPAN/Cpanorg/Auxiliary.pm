@@ -78,17 +78,20 @@ directories already in existence:
 
 =item * C<verbose>
 
-If provided with a Perl-true value, all methods produce extra output on F<STDOUT> when run.
+If provided with a Perl-true value, all methods produce extra output on
+F<STDOUT> when run.  (However, no methods are yet coded for extra output.)
 
 =item * C<versions_json>
 
 String holding the basename of a file to be created (or regenerated) on server
-holding metadata in JSON format about all releases of F<perl>.  Optional; defaults
-to C<perl_version_all.json>.
+holding metadata in JSON format about all releases of F<perl>.  Optional;
+defaults to C<perl_version_all.json>.
 
 =item * C<search_api_url>
 
-String holding the URL for making an API call to get metadata about all releases of F<perl>.  Optional; defaults to C<http://search.cpan.org/api/dist/perl>.
+String holding the URL for making an API call to get metadata about all
+releases of F<perl>.  Optional; defaults to
+C<http://search.cpan.org/api/dist/perl>.
 
 =back
 
@@ -129,7 +132,7 @@ sub new {
     $data{cwd} = cwd();
     $data{versions_json} ||= 'perl_version_all.json';
     $data{search_api_url} ||= "http://search.cpan.org/api/dist/perl";
-    $data{five_url} ||= "http://www.cpan.org/src/5.0/";
+    $data{five_url} = "http://www.cpan.org/src/5.0/";
 
     my %dirs_required = (
         CPANdir     => [ $data{path}, qw| CPAN | ],
@@ -269,7 +272,7 @@ sub fetch_perl_version_data {
 
 sub get_perl_versions_and_testing {
     my $self = shift;
-    return ( $self->{perl_versions} || undef, $self->{perl_testing} || undef );
+    return ( $self->{perl_versions} || {}, $self->{perl_testing} || {} );
 }
 
 sub make_api_call {
@@ -348,7 +351,7 @@ sub write_security_files_and_symlinks {
 # The "latest" and "stable" are now just aliases for "maint", and "maint" in
 # turn is the maintenance branch with the largest release number. 
 sub create_latest_only_symlinks {
-    my $self = shift;;
+    my $self = shift;
 
     chdir $self->{srcdir} or croak "Unable to chdir to $self->{srcdir}";
 
