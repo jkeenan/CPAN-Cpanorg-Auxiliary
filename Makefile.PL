@@ -3,6 +3,9 @@ use warnings;
 use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
+
+my $mm_ver = ExtUtils::MakeMaker->VERSION;
+
 WriteMakefile(
     NAME         => 'CPAN::Cpanorg::Auxiliary',
     VERSION_FROM => 'lib/CPAN/Cpanorg/Auxiliary.pm',
@@ -20,5 +23,20 @@ WriteMakefile(
         'LWP::Simple'   => 0,
         'Path::Tiny'    => 0.011,
     },
+    ($mm_ver < 6.46 ? () : (META_MERGE => {
+        'meta-spec' => { version => 2 },
+        dynamic_config => 1,
+        resources => {
+            homepage => 'http://thenceforward.net/perl/modules/CPAN-Cpanorg-Auxiliary/',
+            repository => {
+                url => 'https://github.com/jkeenan/CPAN-Cpanorg-Auxiliary.git',
+                web => 'https://github.com/jkeenan/CPAN-Cpanorg-Auxiliary',
+                type => 'git',
+            },
+            bugtracker => {
+                web => 'https://rt.cpan.org/Public/Dist/Display.html?Name=CPAN-Cpanorg-Auxiliary',
+            },
+        },
+    })),
 );
 
