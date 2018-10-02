@@ -15,7 +15,6 @@ WriteMakefile(
         'File::Copy::Recursive::Reduced'    => 0,
         'File::Spec'    => 0,
         'File::Path'    => 2.15,
-        'File::Slurp'   => 9999.19,
         'File::Temp'    => 0,
         'JSON'          => 0,
         'LWP::Simple'   => 0,
