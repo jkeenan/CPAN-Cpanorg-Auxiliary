@@ -15,6 +15,7 @@ WriteMakefile(
     VERSION_FROM => 'lib/CPAN/Cpanorg/Auxiliary.pm',
     AUTHOR       => 'James E Keenan (jkeenan@cpan.org)',
     ABSTRACT_FROM   =>  'lib/CPAN/Cpanorg/Auxiliary.pm',
+    LICENSE      => 'gpl_2',
     PREREQ_PM    => {
         'Test::Simple'  => 0.44,
         Carp            => 0,
