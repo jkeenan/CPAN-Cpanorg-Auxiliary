@@ -1,5 +1,9 @@
 use strict;
 use warnings;
+if ($^O =~ m/mswin32/i) {
+    print STDERR "The application which will use this functionality does not run on Windows\n";
+    exit 0;
+}
 use ExtUtils::MakeMaker;
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
 # the contents of the Makefile that is written.
